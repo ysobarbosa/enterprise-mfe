@@ -1,102 +1,110 @@
-# Enterprise
+# Enterprise MFE
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Monorepo **Nx + Angular** com arquitetura de **microfrontends** (Host + Catalog), consumindo a API pública do [DummyJSON](https://dummyjson.com).
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+É um projeto de estudo: a ideia é construir, passo a passo, uma base no estilo "enterprise" e registrar **o porquê** de cada decisão, não só o resultado. Cada etapa vira um commit pequeno, e este README é atualizado conforme o projeto avança.
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/tutorials/angular-monorepo-tutorial?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+## A ideia
 
-## Run tasks
+Uma vitrine de produtos dividida em duas aplicações independentes:
 
-To run the dev server for your app, use:
+- **Host:** a casca da aplicação (layout, navegação). Carrega os microfrontends em tempo de execução.
+- **Catalog:** o microfrontend da listagem de produtos, com scroll infinito.
 
-```sh
-npx nx serve host
+As duas compartilham código por meio de **libs** do monorepo:
+
+- **`shared/data-access`:** acesso à API e estado (RxJS + Signals).
+- **`shared/ui`:** Design System, com componentes visuais desacoplados das regras de negócio.
+
+```mermaid
+flowchart TD
+    host["apps/host<br/>(shell)"]
+    catalog["apps/catalog<br/>(microfrontend, Fase 5)"]
+    ui["libs/shared/ui<br/>@enterprise/shared/ui"]
+    data["libs/shared/data-access<br/>@enterprise/shared/data-access"]
+    api[("DummyJSON API")]
+
+    host -. "Module Federation (Fase 5)" .-> catalog
+    host --> ui
+    catalog --> ui
+    catalog --> data
+    data --> api
 ```
 
-To create a production bundle:
+## Stack
 
-```sh
-npx nx build host
+| Ferramenta | Versão | Uso |
+|---|---|---|
+| Nx | 23.3 | Monorepo, geradores, cache e grafo de dependências |
+| Angular | 22.1 | Standalone Components, Signals, change detection `OnPush` |
+| TypeScript | 6.0 | `strict` ligado nas libs |
+| RxJS | 7.8 | Requisições HTTP e controle de concorrência |
+| Jest | 30 | Testes unitários |
+| Cypress | 16 | Testes e2e |
+| Node | 24 | Runtime |
+
+## Estrutura
+
+```
+apps/
+  host/                  # aplicação shell
+  host-e2e/              # testes e2e (Cypress) do host
+libs/
+  shared/
+    ui/                  # @enterprise/shared/ui
+    data-access/         # @enterprise/shared/data-access
+      src/lib/products/  # modelos e cliente da API de produtos
 ```
 
-To see all available targets to run for a project, run:
+As libs são importadas sempre pelo alias (`@enterprise/...`), nunca por caminho relativo. Os aliases ficam em `paths` no `tsconfig.base.json` e são criados pelos geradores do Nx. Cada lib expõe apenas o que está no seu `src/index.ts`.
 
-```sh
-npx nx show project host
+## Como rodar
+
+Pré-requisitos: Node 24 e npm.
+
+```bash
+npm ci
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+| Tarefa | Comando |
+|---|---|
+| Servidor de desenvolvimento (http://localhost:4200) | `npx nx serve host` |
+| Build de produção | `npx nx build host` |
+| Testes do host | `npx nx test host` |
+| Testes de uma lib | `npx nx test shared-ui` / `npx nx test shared-data-access` |
+| Todos os testes | `npx nx run-many -t test` |
+| Lint | `npx nx run-many -t lint` |
+| Grafo de dependências | `npx nx graph` |
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+## Progresso
 
-## Add new projects
+- [x] **Fase 1: base do workspace.** Workspace Nx criado, componente de exemplo removido, build e testes verdes.
+- [x] **Fase 2: libs compartilhadas.** `shared/ui` e `shared/data-access` geradas com o Nx; alias `@enterprise/shared/ui` validado no build, no Jest e no grafo do Nx.
+- [ ] **Fase 3: camada de dados** *(em andamento)*
+  - [x] Modelos de produto tipados a partir da resposta real da API
+  - [x] `ProductsApi`: cliente HTTP paginado, com testes
+  - [ ] `ProductsStore`: estado com Signals e scroll infinito
+  - [ ] Consumo no host, validando o alias `@enterprise/shared/data-access`
+- [ ] **Fase 4: Design System** em `shared/ui`, incluindo a diretiva de scroll infinito.
+- [ ] **Fase 5: microfrontend Catalog** integrado ao Host via Module Federation.
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+## Decisões-chave
 
-Use the plugin's generator to create new projects.
+### Monorepo e libs
+- **Libs não buildable:** o host compila o código-fonte das libs direto, via `paths`. É mais simples para libs internas e facilita o compartilhamento no Module Federation.
+- **Geradores do Nx sempre que existirem**, para criar libs e aliases de forma consistente. Os defaults do gerador foram fixados no `nx.json` (Jest, ESLint, SCSS). Na versão instalada, o padrão de testes para libs não buildable seria Vitest, e o monorepo usa Jest.
+- **`strict` só nas libs, por enquanto:** código novo já nasce com tipagem rigorosa; ligar o `strict` no restante do workspace é uma tarefa separada.
+- **API pública explícita:** o `index.ts` de cada lib usa exports nomeados (`export type` para tipos) em vez de `export *`, para que nada interno vaze por acidente.
+- **Webpack no host (em vez de esbuild),** de propósito: é o caminho para o Module Federation da Fase 5.
 
-To generate a new application, use:
+### Camada de dados (Fase 3)
+- **Tipos conferidos contra a API real:** `brand` falta em cerca de metade dos produtos, então é opcional; `availabilityStatus` é um union dos três valores que a API devolve. Todos os campos são `readonly`.
+- **`@Service()` em vez de `@Injectable`:** é o padrão do Angular 22. O serviço se registra sozinho na injeção de dependências, e as dependências entram via `inject()`.
+- **Sem `provideHttpClient()`:** no Angular 22, o `HttpClient` já é fornecido no root e usa `fetch` por padrão.
+- **API e estado separados:** o `ProductsApi` só descreve a requisição (devolve um `Observable` e repassa erros); o `ProductsStore` guarda o estado e decide quando buscar.
+- **Scroll infinito com `exhaustMap`:** novos pedidos de "carregar mais" são ignorados enquanto uma carga está em andamento, o que evita páginas perdidas ou duplicadas. O `skip` vem sempre da quantidade de itens já carregados, então uma nova tentativa depois de um erro repete a mesma página.
+- **Detectar o fim da rolagem é papel da UI:** um `IntersectionObserver` numa diretiva da `shared/ui`. O store só expõe `loadMore()` e `hasMore()`, e é testável sem DOM.
 
-```sh
-npx nx g @nx/angular:app demo
-```
-
-To generate a new library, use:
-
-```sh
-npx nx g @nx/angular:lib mylib
-```
-
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
-```
-
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/getting-started/tutorials/angular-monorepo-tutorial?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Testes
+- **Sem rede nos testes:** chamadas HTTP são interceptadas com `HttpTestingController`.
+- **Placeholders temporários:** o host renderiza o componente de exemplo da `shared/ui` só para validar o alias; ele sai na Fase 4.
