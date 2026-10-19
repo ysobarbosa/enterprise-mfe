@@ -15,7 +15,10 @@
     "skipDefaultLibCheck": true,
     "strict": false,
     "paths": {
-      "@enterprise/shared/ui": ["./libs/shared/ui/src/index.ts"]
+      "@enterprise/shared/ui": ["./libs/shared/ui/src/index.ts"],
+      "@enterprise/shared/data-access": [
+        "./libs/shared/data-access/src/index.ts"
+      ]
     }
   },
   "exclude": ["node_modules", "tmp"]
