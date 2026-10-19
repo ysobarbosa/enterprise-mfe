@@ -14,4 +14,11 @@ describe('App', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Welcome host');
   });
+
+  it('should render the shared-ui component from @enterprise/shared/ui', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('ui-shared-ui')?.textContent).toContain('SharedUi works!');
+  });
 });
