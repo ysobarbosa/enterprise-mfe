@@ -83,7 +83,7 @@ npm ci
 - [ ] **Fase 3: camada de dados** *(em andamento)*
   - [x] Modelos de produto tipados a partir da resposta real da API
   - [x] `ProductsApi`: cliente HTTP paginado, com testes
-  - [ ] `ProductsStore`: estado com Signals e scroll infinito
+  - [x] `ProductsStore`: estado com Signals e scroll infinito, com testes
   - [ ] Consumo no host, validando o alias `@enterprise/shared/data-access`
 - [ ] **Fase 4: Design System** em `shared/ui`, incluindo a diretiva de scroll infinito.
 - [ ] **Fase 5: microfrontend Catalog** integrado ao Host via Module Federation.
@@ -102,9 +102,11 @@ npm ci
 - **`@Service()` em vez de `@Injectable`:** é o padrão do Angular 22. O serviço se registra sozinho na injeção de dependências, e as dependências entram via `inject()`.
 - **Sem `provideHttpClient()`:** no Angular 22, o `HttpClient` já é fornecido no root e usa `fetch` por padrão.
 - **API e estado separados:** o `ProductsApi` só descreve a requisição (devolve um `Observable` e repassa erros); o `ProductsStore` guarda o estado e decide quando buscar.
+- **O store é a única porta de entrada:** a lib exporta os tipos de produto e o `ProductsStore`; o `ProductsApi` é interno. Assim, nenhuma tela consegue montar uma lista paralela à do store, e a implementação HTTP pode mudar sem quebrar quem consome.
 - **Scroll infinito com `exhaustMap`:** novos pedidos de "carregar mais" são ignorados enquanto uma carga está em andamento, o que evita páginas perdidas ou duplicadas. O `skip` vem sempre da quantidade de itens já carregados, então uma nova tentativa depois de um erro repete a mesma página.
 - **Detectar o fim da rolagem é papel da UI:** um `IntersectionObserver` numa diretiva da `shared/ui`. O store só expõe `loadMore()` e `hasMore()`, e é testável sem DOM.
 
 ### Testes
 - **Sem rede nos testes:** chamadas HTTP são interceptadas com `HttpTestingController`.
+- **Store testado com um dublê controlado:** o `ProductsApi` é substituído por um dublê cujas respostas só chegam quando o teste manda, o que permite testar o que acontece *durante* uma carga. Um teste de mutação (trocar `exhaustMap` por `mergeMap`) confirmou que a garantia de "uma carga por vez" é coberta por um teste.
 - **Placeholders temporários:** o host renderiza o componente de exemplo da `shared/ui` só para validar o alias; ele sai na Fase 4.

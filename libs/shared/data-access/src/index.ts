@@ -6,5 +6,4 @@ export type {
   ProductReview,
   ProductsResponse,
 } from './lib/products/product';
-export type { GetProductsParams } from './lib/products/products-api';
-export { ProductsApi } from './lib/products/products-api';
+export { ProductsStore } from './lib/products/products-store';
