@@ -80,11 +80,11 @@ npm ci
 
 - [x] **Fase 1: base do workspace.** Workspace Nx criado, componente de exemplo removido, build e testes verdes.
 - [x] **Fase 2: libs compartilhadas.** `shared/ui` e `shared/data-access` geradas com o Nx; alias `@enterprise/shared/ui` validado no build, no Jest e no grafo do Nx.
-- [ ] **Fase 3: camada de dados** *(em andamento)*
+- [x] **Fase 3: camada de dados**
   - [x] Modelos de produto tipados a partir da resposta real da API
   - [x] `ProductsApi`: cliente HTTP paginado, com testes
   - [x] `ProductsStore`: estado com Signals e scroll infinito, com testes
-  - [ ] Consumo no host, validando o alias `@enterprise/shared/data-access`
+  - [x] Consumo no host, com o alias `@enterprise/shared/data-access` validado no build, no Jest e no grafo do Nx
 - [ ] **Fase 4: Design System** em `shared/ui`, incluindo a diretiva de scroll infinito.
 - [ ] **Fase 5: microfrontend Catalog** integrado ao Host via Module Federation.
 
@@ -105,8 +105,11 @@ npm ci
 - **O store é a única porta de entrada:** a lib exporta os tipos de produto e o `ProductsStore`; o `ProductsApi` é interno. Assim, nenhuma tela consegue montar uma lista paralela à do store, e a implementação HTTP pode mudar sem quebrar quem consome.
 - **Scroll infinito com `exhaustMap`:** novos pedidos de "carregar mais" são ignorados enquanto uma carga está em andamento, o que evita páginas perdidas ou duplicadas. O `skip` vem sempre da quantidade de itens já carregados, então uma nova tentativa depois de um erro repete a mesma página.
 - **Detectar o fim da rolagem é papel da UI:** um `IntersectionObserver` numa diretiva da `shared/ui`. O store só expõe `loadMore()` e `hasMore()`, e é testável sem DOM.
+- **Página de produtos no host, por enquanto:** a `ProductsPage` valida a camada de dados de ponta a ponta, com um botão "Carregar mais" no lugar do scroll automático. O botão dá lugar à diretiva da Fase 4, e a página vai para o Catalog na Fase 5. Até lá, o host depende de `shared/data-access`, o que o diagrama acima ainda não mostra.
+- **Rota lazy com `loadComponent`:** a página sai num chunk próprio (22,88 kB), pelo mesmo tipo de rota que deve receber o Catalog. Ligar a primeira rota aumentou o bundle inicial de 205,96 kB para 373,95 kB (cerca de 50 kB a mais em transferência). Medimos isso comparando builds com e sem a rota, e aceitamos o custo porque o host precisa de rotas de qualquer forma.
 
 ### Testes
 - **Sem rede nos testes:** chamadas HTTP são interceptadas com `HttpTestingController`.
 - **Store testado com um dublê controlado:** o `ProductsApi` é substituído por um dublê cujas respostas só chegam quando o teste manda, o que permite testar o que acontece *durante* uma carga. Um teste de mutação (trocar `exhaustMap` por `mergeMap`) confirmou que a garantia de "uma carga por vez" é coberta por um teste.
+- **Página testada com o store real:** só o HTTP é interceptado, então a spec cobre página, store e API juntos, verificando o que o usuário vê na tela.
 - **Placeholders temporários:** o host renderiza o componente de exemplo da `shared/ui` só para validar o alias; ele sai na Fase 4.
