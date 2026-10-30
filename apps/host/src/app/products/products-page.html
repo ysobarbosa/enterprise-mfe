@@ -1,0 +1,21 @@
+<p>{{ store.products().length }} de {{ store.total() ?? '…' }} produtos</p>
+
+<ul>
+  @for (product of store.products(); track product.id) {
+    <li>
+      <img [src]="product.thumbnail" [alt]="product.title" width="48" height="48" />
+      <strong>{{ product.title }}</strong>, {{ product.brand ?? 'sem marca' }}
+      ({{ product.price | currency: 'USD' }}) {{ product.availabilityStatus }}
+    </li>
+  }
+</ul>
+
+@if (store.error()) {
+  <p role="alert">Não foi possível carregar os produtos.</p>
+}
+
+@if (store.hasMore()) {
+  <button type="button" (click)="store.loadMore()" [disabled]="store.loading()">
+    {{ store.loading() ? 'Carregando…' : store.error() ? 'Tentar de novo' : 'Carregar mais' }}
+  </button>
+}
