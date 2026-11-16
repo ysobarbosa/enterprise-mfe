@@ -1,0 +1,39 @@
+:host {
+  --_bg: var(--ui-color-rose-50);
+  --_fg: var(--ui-color-ink-muted);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: var(--ui-radius-sm);
+  background: var(--_bg);
+  color: var(--_fg);
+  font: 400 0.65rem/1 var(--ui-font-body);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:host::before {
+  content: '';
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+:host([data-tone='success']) {
+  --_bg: var(--ui-color-success-bg);
+  --_fg: var(--ui-color-success);
+}
+
+:host([data-tone='warning']) {
+  --_bg: var(--ui-color-warning-bg);
+  --_fg: var(--ui-color-warning);
+}
+
+:host([data-tone='danger']) {
+  --_bg: var(--ui-color-danger-bg);
+  --_fg: var(--ui-color-danger);
+}

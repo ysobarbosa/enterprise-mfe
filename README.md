@@ -51,7 +51,7 @@ apps/
   host-e2e/              # testes e2e (Cypress) do host
 libs/
   shared/
-    ui/                  # @enterprise/shared/ui
+    ui/                  # @enterprise/shared/ui (componentes e src/styles/theme.scss)
     data-access/         # @enterprise/shared/data-access
       src/lib/products/  # modelos e cliente da API de produtos
 ```
@@ -85,7 +85,11 @@ npm ci
   - [x] `ProductsApi`: cliente HTTP paginado, com testes
   - [x] `ProductsStore`: estado com Signals e scroll infinito, com testes
   - [x] Consumo no host, com o alias `@enterprise/shared/data-access` validado no build, no Jest e no grafo do Nx
-- [ ] **Fase 4: Design System** em `shared/ui`, incluindo a diretiva de scroll infinito.
+- [x] **Fase 4: Design System** em `shared/ui`
+  - [x] Fronteiras entre camadas garantidas pelo ESLint (tags `type:*` e `scope:*`)
+  - [x] Tokens de design (cores, tipografia, raios, sombras, movimento) como variáveis CSS
+  - [x] Componentes `Button`, `Badge` e `Card` e diretiva `InfiniteScroll`, com testes
+  - [x] Vitrine "Maison Rosé" no host, com scroll infinito automático
 - [ ] **Fase 5: microfrontend Catalog** integrado ao Host via Module Federation.
 
 ## Decisões-chave
@@ -105,11 +109,21 @@ npm ci
 - **O store é a única porta de entrada:** a lib exporta os tipos de produto e o `ProductsStore`; o `ProductsApi` é interno. Assim, nenhuma tela consegue montar uma lista paralela à do store, e a implementação HTTP pode mudar sem quebrar quem consome.
 - **Scroll infinito com `exhaustMap`:** novos pedidos de "carregar mais" são ignorados enquanto uma carga está em andamento, o que evita páginas perdidas ou duplicadas. O `skip` vem sempre da quantidade de itens já carregados, então uma nova tentativa depois de um erro repete a mesma página.
 - **Detectar o fim da rolagem é papel da UI:** um `IntersectionObserver` numa diretiva da `shared/ui`. O store só expõe `loadMore()` e `hasMore()`, e é testável sem DOM.
-- **Página de produtos no host, por enquanto:** a `ProductsPage` valida a camada de dados de ponta a ponta, com um botão "Carregar mais" no lugar do scroll automático. O botão dá lugar à diretiva da Fase 4, e a página vai para o Catalog na Fase 5. Até lá, o host depende de `shared/data-access`, o que o diagrama acima ainda não mostra.
+- **Página de produtos no host, por enquanto:** a `ProductsPage` valida a camada de dados de ponta a ponta e vai para o Catalog na Fase 5. Até lá, o host depende de `shared/data-access`, o que o diagrama acima ainda não mostra.
 - **Rota lazy com `loadComponent`:** a página sai num chunk próprio (22,88 kB), pelo mesmo tipo de rota que deve receber o Catalog. Ligar a primeira rota aumentou o bundle inicial de 205,96 kB para 373,95 kB (cerca de 50 kB a mais em transferência). Medimos isso comparando builds com e sem a rota, e aceitamos o custo porque o host precisa de rotas de qualquer forma.
+
+### Design System (Fase 4)
+- **Fronteiras garantidas por ferramenta:** cada projeto tem tags de camada (`type:app`, `type:ui`, `type:data-access`) e de escopo (`scope:shared`, `scope:host`). O ESLint barra, por exemplo, um import de `shared/data-access` dentro de `shared/ui`, o que foi comprovado com um import proibido de teste.
+- **Componentes sem domínio:** a `shared/ui` não conhece produtos. O `Card` recebe mídia e conteúdo por projeção, e o `Badge` recebe um tom (`success`, `warning`...). Traduzir "Low Stock" em "Últimas unidades" com tom de alerta é papel do app.
+- **Tokens como variáveis CSS:** a paleta (marfim, rosa queimado claro e tinta ameixa), as fontes (Cormorant Garamond e Jost), os raios, as sombras e as curvas de animação ficam num tema global da lib, que cada app carrega. Os componentes só leem as variáveis.
+- **`Button` sobre o elemento nativo:** o seletor é de atributo (`button[uiButton]`), para manter foco, teclado e acessibilidade do `<button>`. A regra de lint que exige seletor de elemento tem uma exceção justificada nessa linha.
+- **Diretiva só detecta, não carrega:** a `InfiniteScroll` emite `reached` quando a sentinela se aproxima da tela, e a página chama `loadMore()`. Ela recria o observador a cada reativação, então, se a sentinela continuar visível depois de uma carga, a próxima página vem sem precisar rolar.
+- **Sem auto-retry em erro:** com erro, a sentinela some e aparece o botão "Tentar de novo". Se ela continuasse ativa, o erro dispararia novas tentativas em sequência.
+- **Movimento discreto:** os cards entram com um leve deslize, sobem no hover e ampliam a imagem; tudo é desligado para quem pede menos movimento no sistema (`prefers-reduced-motion`).
+- **Sem Storybook, por ora:** os componentes são vistos no próprio host.
 
 ### Testes
 - **Sem rede nos testes:** chamadas HTTP são interceptadas com `HttpTestingController`.
 - **Store testado com um dublê controlado:** o `ProductsApi` é substituído por um dublê cujas respostas só chegam quando o teste manda, o que permite testar o que acontece *durante* uma carga. Um teste de mutação (trocar `exhaustMap` por `mergeMap`) confirmou que a garantia de "uma carga por vez" é coberta por um teste.
 - **Página testada com o store real:** só o HTTP é interceptado, então a spec cobre página, store e API juntos, verificando o que o usuário vê na tela.
-- **Placeholders temporários:** o host renderiza o componente de exemplo da `shared/ui` só para validar o alias; ele sai na Fase 4.
+- **Diretiva testada com um `IntersectionObserver` falso:** o ambiente de DOM do Jest não tem um, então o teste decide quando a sentinela "entra na tela".

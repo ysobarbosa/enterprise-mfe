@@ -1,0 +1,98 @@
+// Design tokens and base styles for the enterprise design system.
+// Loaded globally by each app (see the "styles" array in the app's project.json);
+// components read the tokens through CSS custom properties.
+
+:root {
+  // Palette: warm ivory, light burnt rose and a deep plum ink.
+  --ui-color-bg: #fbf6f4;
+  --ui-color-surface: #ffffff;
+  --ui-color-rose-50: #faf0ed;
+  --ui-color-rose-100: #f3e1dc;
+  --ui-color-rose-200: #e9cbc4;
+  --ui-color-rose-300: #d9ada4;
+  --ui-color-rose-500: #b8807a;
+  --ui-color-rose-700: #8b5a54;
+  --ui-color-ink: #2f2528;
+  --ui-color-ink-muted: #7c6b6e;
+  --ui-color-border: #ecdcd7;
+  --ui-color-gold: #b39563;
+
+  --ui-color-success: #5f7f69;
+  --ui-color-success-bg: #e9f0ea;
+  --ui-color-warning: #9a6a35;
+  --ui-color-warning-bg: #f6ebdc;
+  --ui-color-danger: #9c4f4f;
+  --ui-color-danger-bg: #f5e3e2;
+
+  // Typography: an editorial serif for display, a light geometric sans for text.
+  --ui-font-display: 'Cormorant Garamond', 'Times New Roman', serif;
+  --ui-font-body: 'Jost', 'Segoe UI', system-ui, sans-serif;
+
+  // Shape, depth and motion.
+  --ui-radius-sm: 6px;
+  --ui-radius-md: 10px;
+  --ui-radius-lg: 16px;
+  --ui-shadow-soft: 0 18px 40px -24px rgb(139 90 84 / 45%);
+  --ui-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ui-duration: 350ms;
+
+  --ui-space-1: 0.25rem;
+  --ui-space-2: 0.5rem;
+  --ui-space-3: 0.75rem;
+  --ui-space-4: 1rem;
+  --ui-space-6: 1.5rem;
+  --ui-space-8: 2rem;
+  --ui-space-12: 3rem;
+  --ui-space-16: 4rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--ui-color-bg);
+  color: var(--ui-color-ink);
+  font: 300 1rem/1.6 var(--ui-font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--ui-font-display);
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: var(--ui-color-rose-200);
+  color: var(--ui-color-ink);
+}
+
+.ui-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

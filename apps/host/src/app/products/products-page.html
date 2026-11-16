@@ -1,21 +1,52 @@
-<p>{{ store.products().length }} de {{ store.total() ?? '…' }} produtos</p>
+<section class="hero">
+  <p class="eyebrow">Coleção atual</p>
+  <h1>Peças escolhidas <em>com delicadeza</em></h1>
+  <p class="lead">Beleza, casa e acessórios selecionados um a um, para quem aprecia o detalhe.</p>
+</section>
 
-<ul>
+<div class="toolbar">
+  <span class="rule" aria-hidden="true"></span>
+  @if (store.total() !== null) {
+    <p class="count" aria-live="polite">{{ store.products().length }} de {{ store.total() }} peças</p>
+  }
+</div>
+
+<ul class="grid">
   @for (product of store.products(); track product.id) {
     <li>
-      <img [src]="product.thumbnail" [alt]="product.title" width="48" height="48" />
-      <strong>{{ product.title }}</strong>, {{ product.brand ?? 'sem marca' }}
-      ({{ product.price | currency: 'USD' }}) {{ product.availabilityStatus }}
+      <ui-card interactive>
+        <img uiCardMedia [src]="product.thumbnail" [alt]="product.title" loading="lazy" width="300" height="300" />
+        <p class="brand">{{ product.brand ?? 'Seleção da casa' }}</p>
+        <h2 class="title">{{ product.title }}</h2>
+        <div class="footer">
+          <span class="price">{{ product.price | currency: 'USD' }}</span>
+          <ui-badge [tone]="availability[product.availabilityStatus].tone">
+            {{ availability[product.availabilityStatus].label }}
+          </ui-badge>
+        </div>
+      </ui-card>
     </li>
   }
 </ul>
 
 @if (store.error()) {
-  <p role="alert">Não foi possível carregar os produtos.</p>
-}
-
-@if (store.hasMore()) {
-  <button type="button" (click)="store.loadMore()" [disabled]="store.loading()">
-    {{ store.loading() ? 'Carregando…' : store.error() ? 'Tentar de novo' : 'Carregar mais' }}
-  </button>
+  <div class="status" role="alert">
+    <p>Não foi possível carregar mais peças.</p>
+    <button uiButton variant="outline" type="button" (click)="store.loadMore()">Tentar de novo</button>
+  </div>
+} @else if (store.hasMore()) {
+  <!-- Hidden on error on purpose: re-enabling the sentinel would retry in a loop. -->
+  <div
+    class="status"
+    uiInfiniteScroll
+    [uiInfiniteScrollDisabled]="store.loading()"
+    (reached)="store.loadMore()"
+  >
+    @if (store.loading()) {
+      <span class="loader" aria-hidden="true"></span>
+      <span class="ui-visually-hidden" role="status">Carregando peças</span>
+    }
+  </div>
+} @else {
+  <p class="status end">Você viu toda a coleção.</p>
 }

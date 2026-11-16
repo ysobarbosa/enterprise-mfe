@@ -1,0 +1,52 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-space-2);
+  padding: 0.85rem 1.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
+  font: 400 0.75rem/1 var(--ui-font-body);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--ui-duration) var(--ui-ease),
+    border-color var(--ui-duration) var(--ui-ease),
+    color var(--ui-duration) var(--ui-ease),
+    box-shadow var(--ui-duration) var(--ui-ease),
+    transform var(--ui-duration) var(--ui-ease);
+}
+
+:host(.ui-button--primary) {
+  background: var(--ui-color-ink);
+  color: var(--ui-color-bg);
+}
+
+:host(.ui-button--primary:hover:not(:disabled)) {
+  background: var(--ui-color-rose-700);
+  box-shadow: var(--ui-shadow-soft);
+  transform: translateY(-1px);
+}
+
+:host(.ui-button--outline) {
+  background: transparent;
+  border-color: var(--ui-color-rose-300);
+  color: var(--ui-color-ink);
+}
+
+:host(.ui-button--outline:hover:not(:disabled)) {
+  background: var(--ui-color-rose-50);
+  border-color: var(--ui-color-rose-500);
+}
+
+:host(:focus-visible) {
+  outline: 2px solid var(--ui-color-rose-500);
+  outline-offset: 3px;
+}
+
+:host(:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

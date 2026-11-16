@@ -22,7 +22,7 @@
             "input": "apps/host/public"
           }
         ],
-        "styles": ["apps/host/src/styles.scss"]
+        "styles": ["libs/shared/ui/src/styles/theme.scss", "apps/host/src/styles.scss"]
       },
       "configurations": {
         "production": {
