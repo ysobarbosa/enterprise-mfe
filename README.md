@@ -1,68 +1,133 @@
-# Enterprise MFE
+<div align="center">
 
-Monorepo **Nx + Angular** com arquitetura de **microfrontends** (Host + Catalog), consumindo a API pública do [DummyJSON](https://dummyjson.com).
+# Maison Rosé · Enterprise MFE
 
-É um projeto de estudo: a ideia é construir, passo a passo, uma base no estilo "enterprise" e registrar **o porquê** de cada decisão, não só o resultado. Cada etapa vira um commit pequeno, e este README é atualizado conforme o projeto avança.
+**Vitrine de produtos com microfrontends em Angular, Native Federation e um design system próprio.**
 
-## A ideia
+![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white)
+![Nx](https://img.shields.io/badge/Nx-23-143055?logo=nx&logoColor=white)
+![Native Federation](https://img.shields.io/badge/Native%20Federation-22.1-8b5a54)
+![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
+![RxJS](https://img.shields.io/badge/RxJS-7.8-B7178C?logo=reactivex&logoColor=white)
+![Signals](https://img.shields.io/badge/Angular-Signals-b8807a)
+![Jest](https://img.shields.io/badge/Jest-30%20testes%20unit%C3%A1rios-C21325?logo=jest&logoColor=white)
 
-Uma vitrine de produtos dividida em duas aplicações independentes:
+<img src="docs/media/demo.gif" alt="Demonstração: a vitrine carrega, um card reage ao hover e o scroll infinito carrega a coleção inteira até 194 de 194 peças" width="100%" />
 
-- **Host:** a casca da aplicação (layout, navegação). Carrega os microfrontends em tempo de execução.
-- **Catalog:** o microfrontend da listagem de produtos, com scroll infinito.
+</div>
 
-As duas compartilham código por meio de **libs** do monorepo:
+## Por que construí este projeto
 
-- **`shared/data-access`:** acesso à API e estado (RxJS + Signals).
-- **`shared/ui`:** Design System, com componentes visuais desacoplados das regras de negócio.
+Construí o Maison Rosé para mostrar, com código real e decisões documentadas, o que eu entrego numa posição de **frontend pleno ou sênior**:
+
+- **Microfrontends com Native Federation:** dois apps Angular independentes (host e catalog) compostos em tempo de execução, sem o host importar uma linha do catalog.
+- **Consumo de API com estado reativo:** dados reais do [DummyJSON](https://dummyjson.com), com RxJS para o transporte e Signals para o estado, num scroll infinito robusto a cliques repetidos e a falhas de rede.
+- **Arquitetura que escala em equipe:** monorepo Nx com fronteiras entre camadas garantidas pelo lint, APIs públicas explícitas e um design system desacoplado do domínio.
+- **Qualidade verificável:** testes que cobrem os cenários difíceis (concorrência, erro, fallback do microfrontend) e performance medida no build de produção.
+
+O projeto foi construído em fases, com um commit por passo e o motivo de cada decisão registrado em [docs/decisoes-tecnicas.md](docs/decisoes-tecnicas.md).
+
+## Destaques
+
+| | |
+|---|---|
+| 🧩 **Native Federation** | O host lê um manifesto em tempo de execução e monta as rotas expostas pelo catalog. Trocar o endereço do microfrontend não exige rebuild. |
+| 🛡️ **Resiliência** | Se o catalog cair, o host continua no ar e mostra uma página de aviso com "Tentar de novo". |
+| ♾️ **Scroll infinito correto** | `exhaustMap` impede páginas duplicadas ou perdidas; erros mantêm os itens na tela e a nova tentativa repete a mesma página. |
+| 🎨 **Design system próprio** | Tokens em variáveis CSS, componentes sem conhecimento de domínio e uma diretiva de scroll infinito reutilizável. |
+| 🧱 **Fronteiras pelo lint** | Tags `type:*` e `scope:*` impedem, por exemplo, que a lib de UI importe a camada de dados. |
+| ⚡ **Performance medida** | Lighthouse no build de produção: desktop 88 de performance, CLS 0 e SEO 100 (detalhes abaixo). |
+
+## Telas
+
+| Desktop | Celular | Catalog fora do ar |
+|---|---|---|
+| <img src="docs/media/desktop.png" alt="Vitrine no desktop com grade de 4 colunas" /> | <img src="docs/media/mobile.png" alt="Vitrine no celular com duas colunas" width="220" /> | <img src="docs/media/fallback.png" alt="Página de aviso exibida pelo host quando o catalog não responde" /> |
+
+## Arquitetura
 
 ```mermaid
 flowchart TD
-    host["apps/host :4200<br/>(shell)"]
-    catalog["apps/catalog :4201<br/>(microfrontend)"]
-    ui["libs/shared/ui<br/>@enterprise/shared/ui"]
-    data["libs/shared/data-access<br/>@enterprise/shared/data-access"]
+    host["apps/host :4200<br/>(shell, dynamic host)"]
+    catalog["apps/catalog :4201<br/>(microfrontend remote)"]
+    ui["libs/shared/ui<br/>design system"]
+    data["libs/shared/data-access<br/>API + estado"]
     api[("DummyJSON API")]
 
-    host -. "Native Federation<br/>(rotas em tempo de execução)" .-> catalog
+    host -. "Native Federation<br/>manifesto + rotas em runtime" .-> catalog
     host --> ui
     catalog --> ui
     catalog --> data
     data --> api
 ```
 
-O host não importa código do catalog: ele só conhece o nome do remote e o endereço do `remoteEntry.json`, que ficam em `apps/host/public/federation.manifest.json`. O catalog expõe suas rotas (`./routes`), e o host as monta na raiz. Angular, RxJS e as libs do monorepo são compartilhados como singletons, então os dois apps usam a mesma instância do `ProductsStore`.
+- **Host** (`apps/host`): casca da aplicação (layout, marca, rodapé). Lê `federation.manifest.json` e monta na raiz as rotas que o catalog expõe (`./routes`).
+- **Catalog** (`apps/catalog`): a vitrine. Roda sozinho em `:4201` ou dentro do host.
+- **`shared/data-access`**: `ProductsApi` (HTTP) e `ProductsStore` (estado). Só o store é público.
+- **`shared/ui`**: `Button`, `Badge`, `Card`, diretiva `InfiniteScroll` e o tema.
+- Angular, RxJS e as libs são **singletons compartilhados** entre host e catalog: existe uma única instância do store.
+
+## Decisões técnicas em destaque
+
+**1. O host recebe o carregador da federação por injeção de dependência.** O `loadRemoteModule` avulso está deprecado; usar o carregador devolvido pelo `initFederation` deixa a rota testável com um carregador falso, e a falha vira uma página de aviso em vez de uma tela em branco.
+
+```ts
+export function loadCatalogRoutes(): Promise<Route[]> {
+  return inject(REMOTE_LOADER)('catalog', './routes')
+    .then((remote) => (remote as { routes: Route[] }).routes)
+    .catch(() => [{ path: '**', component: RemoteUnavailable }]);
+}
+```
+
+**2. Scroll infinito com `exhaustMap` e `skip` derivado do estado.** Pedidos feitos durante uma carga são ignorados (o `switchMap` cancelaria e perderia páginas). Como o próximo `skip` é sempre a quantidade de itens já carregados, uma nova tentativa depois de um erro repete exatamente a página que falhou.
+
+```ts
+this.loadMoreRequests
+  .pipe(exhaustMap(() => this.fetchNextPage()), takeUntilDestroyed())
+  .subscribe();
+```
+
+Um teste de mutação confirmou a garantia: trocando `exhaustMap` por `mergeMap`, o teste "ignora pedidos durante a carga" falha.
+
+**3. A detecção de rolagem fica na UI; a decisão de carregar fica no app.** A diretiva `uiInfiniteScroll` só avisa que a sentinela se aproximou da tela (`IntersectionObserver`); a página chama `store.loadMore()`. O store continua testável sem DOM, e a diretiva serve para qualquer lista.
+
+**4. Native Federation em vez do Module Federation do Nx.** No Nx 23, os geradores de Module Federation para Angular estão deprecados e saem no Nx 24. Migrei o host de webpack para esbuild e adotei o Native Federation, que é a recomendação oficial.
+
+A lista completa, com o motivo de cada escolha, está em [docs/decisoes-tecnicas.md](docs/decisoes-tecnicas.md).
+
+## Performance
+
+Lighthouse 12 no **build de produção**, servido localmente (host e catalog):
+
+| Perfil | Performance | Acessibilidade | Boas práticas | SEO | LCP | CLS |
+|---|---|---|---|---|---|---|
+| Desktop | **88** | 95 | 100 | 100 | 2,1 s | **0** |
+| Celular (4G simulado) | 61 | 95 | 96 | 100 | 10,8 s | **0** |
+
+O que a medição mostrou e o que foi corrigido:
+
+- **CLS de 0,813 para 0:** o conteúdo centralizado pulava de lado quando a barra de rolagem aparecia (`scrollbar-gutter: stable` resolveu), e o rodapé pulava quando a vitrine chegava (o conteúdo ganhou altura mínima de uma tela).
+- **Imagem principal sem atraso:** a primeira linha de produtos deixou de usar `loading="lazy"` e ganhou prioridade alta; a API e o CDN de imagens recebem `preconnect`.
+- **Trade-off conhecido no celular:** sob 4G simulado, a cadeia da federação (manifesto → `remoteEntry` → módulos compartilhados → rotas → API → imagens) ainda pesa no LCP. Os próximos passos estão no roadmap abaixo.
+
+## Qualidade
+
+- **30 testes unitários** (Jest): store com dublê de API controlado pelo teste, página com o store real e HTTP interceptado, diretiva com `IntersectionObserver` falso, rota remota com carregador falso e fallback.
+- **Nenhum teste depende de rede:** o HTTP é interceptado com `HttpTestingController`.
+- **Lint com fronteiras de módulo** em todos os projetos, comprovadas com um import proibido de teste.
+- **Tipos conferidos contra a API real:** dos 194 produtos, 92 não têm `brand`, então o campo é opcional e a interface trata a ausência.
 
 ## Stack
 
-| Ferramenta | Versão | Uso |
-|---|---|---|
-| Nx | 23.3 | Monorepo, geradores, cache e grafo de dependências |
-| Angular | 22.1 | Standalone Components, Signals, change detection `OnPush`, builder esbuild |
-| Native Federation | 22.1 | Microfrontends (`@angular-architects/native-federation`) |
-| TypeScript | 6.0 | `strict` ligado nas libs |
-| RxJS | 7.8 | Requisições HTTP e controle de concorrência |
-| Jest | 30 | Testes unitários |
-| Cypress | 16 | Testes e2e |
-| Node | 24 | Runtime |
-
-## Estrutura
-
-```
-apps/
-  host/                  # aplicação shell (dynamic host)
-  host-e2e/              # testes e2e (Cypress) do host
-  catalog/               # microfrontend da vitrine (remote)
-    src/app/products/    # página de produtos com scroll infinito
-  catalog-e2e/           # testes e2e (Cypress) do catalog
-libs/
-  shared/
-    ui/                  # @enterprise/shared/ui (componentes e src/styles/theme.scss)
-    data-access/         # @enterprise/shared/data-access
-      src/lib/products/  # modelos e cliente da API de produtos
-```
-
-As libs são importadas sempre pelo alias (`@enterprise/...`), nunca por caminho relativo. Os aliases ficam em `paths` no `tsconfig.base.json` e são criados pelos geradores do Nx. Cada lib expõe apenas o que está no seu `src/index.ts`.
+| Ferramenta | Uso |
+|---|---|
+| Angular 22 | Standalone Components, Signals, `OnPush`, builder esbuild (`@angular/build`) |
+| Native Federation 22.1 | Microfrontends em tempo de execução |
+| Nx 23 | Monorepo, geradores, cache, grafo e fronteiras de módulo |
+| RxJS 7.8 | HTTP e controle de concorrência |
+| TypeScript 6 | `strict` nas libs |
+| Jest 30 | Testes unitários |
+| SCSS + variáveis CSS | Tema e tokens do design system |
 
 ## Como rodar
 
@@ -72,7 +137,7 @@ Pré-requisitos: Node 24 e npm.
 npm ci
 ```
 
-Para ver a aplicação completa, suba os dois apps, cada um no seu terminal, e abra http://localhost:4200:
+Suba os dois apps, cada um no seu terminal, e abra http://localhost:4200:
 
 ```bash
 npx nx serve catalog
@@ -82,80 +147,66 @@ npx nx serve catalog
 npx nx serve host
 ```
 
-Se o catalog estiver fora do ar, o host continua funcionando e mostra um aviso no lugar da vitrine. O catalog também abre sozinho em http://localhost:4201 (modo standalone).
-
 | Tarefa | Comando |
 |---|---|
-| Build de produção | `npx nx build host` / `npx nx build catalog` |
-| Testes de um app | `npx nx test host` / `npx nx test catalog` |
-| Testes de uma lib | `npx nx test shared-ui` / `npx nx test shared-data-access` |
+| Catalog sozinho | http://localhost:4201 (com `nx serve catalog` rodando) |
+| Build de produção | `npx nx run-many -t build -p host catalog` |
 | Todos os testes | `npx nx run-many -t test` |
 | Lint | `npx nx run-many -t lint` |
 | Grafo de dependências | `npx nx graph` |
 
-## Progresso
+## Estrutura
 
-- [x] **Fase 1: base do workspace.** Workspace Nx criado, componente de exemplo removido, build e testes verdes.
-- [x] **Fase 2: libs compartilhadas.** `shared/ui` e `shared/data-access` geradas com o Nx; alias `@enterprise/shared/ui` validado no build, no Jest e no grafo do Nx.
-- [x] **Fase 3: camada de dados**
-  - [x] Modelos de produto tipados a partir da resposta real da API
-  - [x] `ProductsApi`: cliente HTTP paginado, com testes
-  - [x] `ProductsStore`: estado com Signals e scroll infinito, com testes
-  - [x] Consumo no host, com o alias `@enterprise/shared/data-access` validado no build, no Jest e no grafo do Nx
-- [x] **Fase 4: Design System** em `shared/ui`
-  - [x] Fronteiras entre camadas garantidas pelo ESLint (tags `type:*` e `scope:*`)
-  - [x] Tokens de design (cores, tipografia, raios, sombras, movimento) como variáveis CSS
-  - [x] Componentes `Button`, `Badge` e `Card` e diretiva `InfiniteScroll`, com testes
-  - [x] Vitrine "Maison Rosé" no host, com scroll infinito automático
-- [x] **Fase 5: microfrontend Catalog**
-  - [x] Host migrado do builder webpack para o esbuild (`@angular/build`)
-  - [x] App `catalog` gerado e configurado como remote do Native Federation
-  - [x] Host como dynamic host, carregando as rotas do catalog pelo manifesto
-  - [x] Vitrine movida do host para o catalog
-  - [x] Host resiliente: aviso no lugar da vitrine quando o catalog não responde
+```
+apps/
+  host/                  # shell (dynamic host)
+  catalog/               # microfrontend da vitrine (remote)
+    src/app/products/    # página de produtos com scroll infinito
+libs/
+  shared/
+    ui/                  # @enterprise/shared/ui: componentes, diretiva e tema
+    data-access/         # @enterprise/shared/data-access: API e estado
+docs/
+  decisoes-tecnicas.md   # todas as decisões, com o motivo
+  media/                 # GIF e capturas deste README
+```
 
-## Decisões-chave
+## O que vem por aí
 
-### Monorepo e libs
-- **Libs não buildable:** o host compila o código-fonte das libs direto, via `paths`. É mais simples para libs internas, e o Native Federation compartilha o código delas entre host e catalog.
-- **Geradores do Nx sempre que existirem**, para criar libs e aliases de forma consistente. Os defaults do gerador foram fixados no `nx.json` (Jest, ESLint, SCSS). Na versão instalada, o padrão de testes para libs não buildable seria Vitest, e o monorepo usa Jest.
-- **`strict` só nas libs, por enquanto:** código novo já nasce com tipagem rigorosa; ligar o `strict` no restante do workspace é uma tarefa separada.
-- **API pública explícita:** o `index.ts` de cada lib usa exports nomeados (`export type` para tipos) em vez de `export *`, para que nada interno vaze por acidente.
-- **Esbuild em todos os apps:** o host começou em webpack, pensando no Module Federation do Nx. Na Fase 5, ele foi migrado para o esbuild (veja abaixo).
+O próximo passo é transformar a vitrine num **e-commerce de verdade**.
 
-### Camada de dados (Fase 3)
-- **Tipos conferidos contra a API real:** `brand` falta em cerca de metade dos produtos, então é opcional; `availabilityStatus` é um union dos três valores que a API devolve. Todos os campos são `readonly`.
-- **`@Service()` em vez de `@Injectable`:** é o padrão do Angular 22. O serviço se registra sozinho na injeção de dependências, e as dependências entram via `inject()`.
-- **Sem `provideHttpClient()`:** no Angular 22, o `HttpClient` já é fornecido no root e usa `fetch` por padrão.
-- **API e estado separados:** o `ProductsApi` só descreve a requisição (devolve um `Observable` e repassa erros); o `ProductsStore` guarda o estado e decide quando buscar.
-- **O store é a única porta de entrada:** a lib exporta os tipos de produto e o `ProductsStore`; o `ProductsApi` é interno. Assim, nenhuma tela consegue montar uma lista paralela à do store, e a implementação HTTP pode mudar sem quebrar quem consome.
-- **Scroll infinito com `exhaustMap`:** novos pedidos de "carregar mais" são ignorados enquanto uma carga está em andamento, o que evita páginas perdidas ou duplicadas. O `skip` vem sempre da quantidade de itens já carregados, então uma nova tentativa depois de um erro repete a mesma página.
-- **Detectar o fim da rolagem é papel da UI:** um `IntersectionObserver` numa diretiva da `shared/ui`. O store só expõe `loadMore()` e `hasMore()`, e é testável sem DOM.
-- **Página de produtos validada no host primeiro:** a `ProductsPage` nasceu no host para testar a camada de dados de ponta a ponta, e foi movida para o catalog na Fase 5, com histórico preservado (`git mv`).
-- **Custo da primeira rota medido:** ainda com webpack, ligar a primeira rota lazy aumentou o bundle inicial de 205,96 kB para 373,95 kB. Medimos com e sem a rota e aceitamos o custo, porque o host precisa de rotas de qualquer forma.
+### 🛒 Carrinho
 
-### Design System (Fase 4)
-- **Fronteiras garantidas por ferramenta:** cada projeto tem tags de camada (`type:app`, `type:ui`, `type:data-access`) e de escopo (`scope:shared`, `scope:host`). O ESLint barra, por exemplo, um import de `shared/data-access` dentro de `shared/ui`, o que foi comprovado com um import proibido de teste.
-- **Componentes sem domínio:** a `shared/ui` não conhece produtos. O `Card` recebe mídia e conteúdo por projeção, e o `Badge` recebe um tom (`success`, `warning`...). Traduzir "Low Stock" em "Últimas unidades" com tom de alerta é papel do app.
-- **Tokens como variáveis CSS:** a paleta (marfim, rosa queimado claro e tinta ameixa), as fontes (Cormorant Garamond e Jost), os raios, as sombras e as curvas de animação ficam num tema global da lib, que cada app carrega. Os componentes só leem as variáveis.
-- **`Button` sobre o elemento nativo:** o seletor é de atributo (`button[uiButton]`), para manter foco, teclado e acessibilidade do `<button>`. A regra de lint que exige seletor de elemento tem uma exceção justificada nessa linha.
-- **Diretiva só detecta, não carrega:** a `InfiniteScroll` emite `reached` quando a sentinela se aproxima da tela, e a página chama `loadMore()`. Ela recria o observador a cada reativação, então, se a sentinela continuar visível depois de uma carga, a próxima página vem sem precisar rolar.
-- **Sem auto-retry em erro:** com erro, a sentinela some e aparece o botão "Tentar de novo". Se ela continuasse ativa, o erro dispararia novas tentativas em sequência.
-- **Movimento discreto:** os cards entram com um leve deslize, sobem no hover e ampliam a imagem; tudo é desligado para quem pede menos movimento no sistema (`prefers-reduced-motion`).
-- **Sem Storybook, por ora:** os componentes são vistos no próprio host.
+- **Estado compartilhado entre microfrontends:** um `CartStore` numa lib `shared/data-access`, com Signals, compartilhado como singleton. O catalog adiciona itens e o ícone do carrinho no cabeçalho do host atualiza na hora, sem os apps se importarem diretamente.
+- **Persistência local:** o carrinho sobrevive a um recarregamento da página.
+- **Integração com a API:** o DummyJSON tem endpoints de carrinho (`/carts`) que simulam as operações, o que permite exercitar o fluxo completo com requisições reais.
 
-### Microfrontends (Fase 5)
-- **Native Federation em vez do Module Federation do Nx:** no Nx 23, os geradores de Module Federation para Angular estão deprecados e saem no Nx 24. A recomendação oficial é o `@angular-architects/native-federation`, que roda sobre o builder esbuild do Angular. A versão 22.1 foi escolhida por casar com o Angular 22.1 do projeto.
-- **Migração para o esbuild:** feita com o gerador `convert-to-application-executor` do Nx. Além de habilitar a federação, eliminou o aviso de builder deprecado. O bundle inicial do host caiu de 385,89 kB para 269,86 kB antes da federação; depois dela, a divisão entre o app e os pacotes compartilhados muda, então os números não se comparam diretamente.
-- **Dynamic host com manifesto:** o endereço do catalog fica num JSON lido em tempo de execução (`federation.manifest.json`). Trocar o endereço de um microfrontend não exige rebuild do host.
-- **O catalog expõe rotas, não componentes:** o contrato é `./routes`. O catalog decide suas próprias páginas e sub-rotas; o host só decide *onde* montá-las.
-- **Carregador via injeção de dependência:** o `loadRemoteModule` avulso está deprecado. O host usa o carregador devolvido pelo `initFederation` e o entrega às rotas por um `InjectionToken`, o que permite testar a rota com um carregador falso.
-- **Host resiliente:** se a federação não inicializar ou o catalog não responder, o host sobe mesmo assim e mostra "A coleção está sendo preparada" com um botão para tentar de novo. Testado desligando o catalog.
-- **Catalog também roda sozinho:** em `localhost:4201`, com uma casca mínima e o mesmo tema, para desenvolver o microfrontend sem depender do host.
-- **Fronteiras por escopo:** o catalog tem `scope:catalog` e só pode depender de libs `scope:shared`. O host não importa nada do catalog.
+### 💳 Checkout
 
-### Testes
-- **Sem rede nos testes:** chamadas HTTP são interceptadas com `HttpTestingController`.
-- **Store testado com um dublê controlado:** o `ProductsApi` é substituído por um dublê cujas respostas só chegam quando o teste manda, o que permite testar o que acontece *durante* uma carga. Um teste de mutação (trocar `exhaustMap` por `mergeMap`) confirmou que a garantia de "uma carga por vez" é coberta por um teste.
-- **Página testada com o store real:** só o HTTP é interceptado, então a spec cobre página, store e API juntos, verificando o que o usuário vê na tela.
-- **Diretiva testada com um `IntersectionObserver` falso:** o ambiente de DOM do Jest não tem um, então o teste decide quando a sentinela "entra na tela".
+- **Um terceiro microfrontend (`checkout`):** formulário de entrega e pagamento simulados, com validação, resumo do pedido e tela de confirmação.
+- **Mais um teste da arquitetura:** o host passa a compor dois remotes, com o carrinho compartilhado entre eles e o mesmo comportamento de fallback se algum ficar fora do ar.
+
+### 🏷️ Filtro por categoria
+
+Hoje a API devolve tudo na mesma lista, de sofá a peixe. O DummyJSON organiza os produtos em **24 categorias** e tem uma rota por categoria (`/products/category/{slug}`). O plano:
+
+- **Filtro na URL** (`?categoria=furniture`), para o link ser compartilhável e o botão voltar do navegador funcionar.
+- **Troca de filtro com `switchMap`:** ao mudar de categoria, a lista é zerada e a busca da categoria anterior é cancelada. É o caso em que o `switchMap` é o operador certo, ao lado do `exhaustMap` que já protege a paginação.
+- **Componente de filtro no design system,** sem conhecer o domínio, como os demais.
+
+### Engenharia
+
+- [ ] Rodar os testes e2e (Cypress) com host e catalog no ar
+- [ ] Reduzir o LCP no celular: pré-carregar o `remoteEntry`, hospedar as fontes e avaliar SSR
+- [ ] Pipeline de CI com `nx affected`
+- [ ] Ligar o `strict` do TypeScript em todo o workspace
+
+---
+
+<div align="center">
+
+Feito por **Yasmin** · [github.com/ysobarbosa](https://github.com/ysobarbosa)
+
+Dados de produtos: [DummyJSON](https://dummyjson.com). Projeto de estudo e portfólio.
+
+</div>
