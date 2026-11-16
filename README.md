@@ -18,25 +18,28 @@ As duas compartilham código por meio de **libs** do monorepo:
 
 ```mermaid
 flowchart TD
-    host["apps/host<br/>(shell)"]
-    catalog["apps/catalog<br/>(microfrontend, Fase 5)"]
+    host["apps/host :4200<br/>(shell)"]
+    catalog["apps/catalog :4201<br/>(microfrontend)"]
     ui["libs/shared/ui<br/>@enterprise/shared/ui"]
     data["libs/shared/data-access<br/>@enterprise/shared/data-access"]
     api[("DummyJSON API")]
 
-    host -. "Module Federation (Fase 5)" .-> catalog
+    host -. "Native Federation<br/>(rotas em tempo de execução)" .-> catalog
     host --> ui
     catalog --> ui
     catalog --> data
     data --> api
 ```
 
+O host não importa código do catalog: ele só conhece o nome do remote e o endereço do `remoteEntry.json`, que ficam em `apps/host/public/federation.manifest.json`. O catalog expõe suas rotas (`./routes`), e o host as monta na raiz. Angular, RxJS e as libs do monorepo são compartilhados como singletons, então os dois apps usam a mesma instância do `ProductsStore`.
+
 ## Stack
 
 | Ferramenta | Versão | Uso |
 |---|---|---|
 | Nx | 23.3 | Monorepo, geradores, cache e grafo de dependências |
-| Angular | 22.1 | Standalone Components, Signals, change detection `OnPush` |
+| Angular | 22.1 | Standalone Components, Signals, change detection `OnPush`, builder esbuild |
+| Native Federation | 22.1 | Microfrontends (`@angular-architects/native-federation`) |
 | TypeScript | 6.0 | `strict` ligado nas libs |
 | RxJS | 7.8 | Requisições HTTP e controle de concorrência |
 | Jest | 30 | Testes unitários |
@@ -47,8 +50,11 @@ flowchart TD
 
 ```
 apps/
-  host/                  # aplicação shell
+  host/                  # aplicação shell (dynamic host)
   host-e2e/              # testes e2e (Cypress) do host
+  catalog/               # microfrontend da vitrine (remote)
+    src/app/products/    # página de produtos com scroll infinito
+  catalog-e2e/           # testes e2e (Cypress) do catalog
 libs/
   shared/
     ui/                  # @enterprise/shared/ui (componentes e src/styles/theme.scss)
@@ -66,11 +72,22 @@ Pré-requisitos: Node 24 e npm.
 npm ci
 ```
 
+Para ver a aplicação completa, suba os dois apps, cada um no seu terminal, e abra http://localhost:4200:
+
+```bash
+npx nx serve catalog
+```
+
+```bash
+npx nx serve host
+```
+
+Se o catalog estiver fora do ar, o host continua funcionando e mostra um aviso no lugar da vitrine. O catalog também abre sozinho em http://localhost:4201 (modo standalone).
+
 | Tarefa | Comando |
 |---|---|
-| Servidor de desenvolvimento (http://localhost:4200) | `npx nx serve host` |
-| Build de produção | `npx nx build host` |
-| Testes do host | `npx nx test host` |
+| Build de produção | `npx nx build host` / `npx nx build catalog` |
+| Testes de um app | `npx nx test host` / `npx nx test catalog` |
 | Testes de uma lib | `npx nx test shared-ui` / `npx nx test shared-data-access` |
 | Todos os testes | `npx nx run-many -t test` |
 | Lint | `npx nx run-many -t lint` |
@@ -90,16 +107,21 @@ npm ci
   - [x] Tokens de design (cores, tipografia, raios, sombras, movimento) como variáveis CSS
   - [x] Componentes `Button`, `Badge` e `Card` e diretiva `InfiniteScroll`, com testes
   - [x] Vitrine "Maison Rosé" no host, com scroll infinito automático
-- [ ] **Fase 5: microfrontend Catalog** integrado ao Host via Module Federation.
+- [x] **Fase 5: microfrontend Catalog**
+  - [x] Host migrado do builder webpack para o esbuild (`@angular/build`)
+  - [x] App `catalog` gerado e configurado como remote do Native Federation
+  - [x] Host como dynamic host, carregando as rotas do catalog pelo manifesto
+  - [x] Vitrine movida do host para o catalog
+  - [x] Host resiliente: aviso no lugar da vitrine quando o catalog não responde
 
 ## Decisões-chave
 
 ### Monorepo e libs
-- **Libs não buildable:** o host compila o código-fonte das libs direto, via `paths`. É mais simples para libs internas e facilita o compartilhamento no Module Federation.
+- **Libs não buildable:** o host compila o código-fonte das libs direto, via `paths`. É mais simples para libs internas, e o Native Federation compartilha o código delas entre host e catalog.
 - **Geradores do Nx sempre que existirem**, para criar libs e aliases de forma consistente. Os defaults do gerador foram fixados no `nx.json` (Jest, ESLint, SCSS). Na versão instalada, o padrão de testes para libs não buildable seria Vitest, e o monorepo usa Jest.
 - **`strict` só nas libs, por enquanto:** código novo já nasce com tipagem rigorosa; ligar o `strict` no restante do workspace é uma tarefa separada.
 - **API pública explícita:** o `index.ts` de cada lib usa exports nomeados (`export type` para tipos) em vez de `export *`, para que nada interno vaze por acidente.
-- **Webpack no host (em vez de esbuild),** de propósito: é o caminho para o Module Federation da Fase 5.
+- **Esbuild em todos os apps:** o host começou em webpack, pensando no Module Federation do Nx. Na Fase 5, ele foi migrado para o esbuild (veja abaixo).
 
 ### Camada de dados (Fase 3)
 - **Tipos conferidos contra a API real:** `brand` falta em cerca de metade dos produtos, então é opcional; `availabilityStatus` é um union dos três valores que a API devolve. Todos os campos são `readonly`.
@@ -109,8 +131,8 @@ npm ci
 - **O store é a única porta de entrada:** a lib exporta os tipos de produto e o `ProductsStore`; o `ProductsApi` é interno. Assim, nenhuma tela consegue montar uma lista paralela à do store, e a implementação HTTP pode mudar sem quebrar quem consome.
 - **Scroll infinito com `exhaustMap`:** novos pedidos de "carregar mais" são ignorados enquanto uma carga está em andamento, o que evita páginas perdidas ou duplicadas. O `skip` vem sempre da quantidade de itens já carregados, então uma nova tentativa depois de um erro repete a mesma página.
 - **Detectar o fim da rolagem é papel da UI:** um `IntersectionObserver` numa diretiva da `shared/ui`. O store só expõe `loadMore()` e `hasMore()`, e é testável sem DOM.
-- **Página de produtos no host, por enquanto:** a `ProductsPage` valida a camada de dados de ponta a ponta e vai para o Catalog na Fase 5. Até lá, o host depende de `shared/data-access`, o que o diagrama acima ainda não mostra.
-- **Rota lazy com `loadComponent`:** a página sai num chunk próprio (22,88 kB), pelo mesmo tipo de rota que deve receber o Catalog. Ligar a primeira rota aumentou o bundle inicial de 205,96 kB para 373,95 kB (cerca de 50 kB a mais em transferência). Medimos isso comparando builds com e sem a rota, e aceitamos o custo porque o host precisa de rotas de qualquer forma.
+- **Página de produtos validada no host primeiro:** a `ProductsPage` nasceu no host para testar a camada de dados de ponta a ponta, e foi movida para o catalog na Fase 5, com histórico preservado (`git mv`).
+- **Custo da primeira rota medido:** ainda com webpack, ligar a primeira rota lazy aumentou o bundle inicial de 205,96 kB para 373,95 kB. Medimos com e sem a rota e aceitamos o custo, porque o host precisa de rotas de qualquer forma.
 
 ### Design System (Fase 4)
 - **Fronteiras garantidas por ferramenta:** cada projeto tem tags de camada (`type:app`, `type:ui`, `type:data-access`) e de escopo (`scope:shared`, `scope:host`). O ESLint barra, por exemplo, um import de `shared/data-access` dentro de `shared/ui`, o que foi comprovado com um import proibido de teste.
@@ -121,6 +143,16 @@ npm ci
 - **Sem auto-retry em erro:** com erro, a sentinela some e aparece o botão "Tentar de novo". Se ela continuasse ativa, o erro dispararia novas tentativas em sequência.
 - **Movimento discreto:** os cards entram com um leve deslize, sobem no hover e ampliam a imagem; tudo é desligado para quem pede menos movimento no sistema (`prefers-reduced-motion`).
 - **Sem Storybook, por ora:** os componentes são vistos no próprio host.
+
+### Microfrontends (Fase 5)
+- **Native Federation em vez do Module Federation do Nx:** no Nx 23, os geradores de Module Federation para Angular estão deprecados e saem no Nx 24. A recomendação oficial é o `@angular-architects/native-federation`, que roda sobre o builder esbuild do Angular. A versão 22.1 foi escolhida por casar com o Angular 22.1 do projeto.
+- **Migração para o esbuild:** feita com o gerador `convert-to-application-executor` do Nx. Além de habilitar a federação, eliminou o aviso de builder deprecado. O bundle inicial do host caiu de 385,89 kB para 269,86 kB antes da federação; depois dela, a divisão entre o app e os pacotes compartilhados muda, então os números não se comparam diretamente.
+- **Dynamic host com manifesto:** o endereço do catalog fica num JSON lido em tempo de execução (`federation.manifest.json`). Trocar o endereço de um microfrontend não exige rebuild do host.
+- **O catalog expõe rotas, não componentes:** o contrato é `./routes`. O catalog decide suas próprias páginas e sub-rotas; o host só decide *onde* montá-las.
+- **Carregador via injeção de dependência:** o `loadRemoteModule` avulso está deprecado. O host usa o carregador devolvido pelo `initFederation` e o entrega às rotas por um `InjectionToken`, o que permite testar a rota com um carregador falso.
+- **Host resiliente:** se a federação não inicializar ou o catalog não responder, o host sobe mesmo assim e mostra "A coleção está sendo preparada" com um botão para tentar de novo. Testado desligando o catalog.
+- **Catalog também roda sozinho:** em `localhost:4201`, com uma casca mínima e o mesmo tema, para desenvolver o microfrontend sem depender do host.
+- **Fronteiras por escopo:** o catalog tem `scope:catalog` e só pode depender de libs `scope:shared`. O host não importa nada do catalog.
 
 ### Testes
 - **Sem rede nos testes:** chamadas HTTP são interceptadas com `HttpTestingController`.

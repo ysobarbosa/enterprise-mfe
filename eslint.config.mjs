@@ -42,6 +42,10 @@ export default [
               sourceTag: 'scope:host',
               onlyDependOnLibsWithTags: ['scope:shared', 'scope:host'],
             },
+            {
+              sourceTag: 'scope:catalog',
+              onlyDependOnLibsWithTags: ['scope:shared', 'scope:catalog'],
+            },
           ],
         },
       ],

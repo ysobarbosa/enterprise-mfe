@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.app.json",
+  "files": [
+    "../../libs/shared/data-access/src/index.ts",
+    "../../libs/shared/ui/src/index.ts",
+    "src/app/remote.routes.ts"
+  ],
+  "include": [
+    "src/**/*.d.ts"
+  ]
+}

@@ -1,0 +1,16 @@
+.standalone-note {
+  margin: 0;
+  padding: var(--ui-space-2) var(--ui-space-4);
+  background: var(--ui-color-ink);
+  color: var(--ui-color-rose-100);
+  font-size: 0.66rem;
+  letter-spacing: 0.28em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+main {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 0 var(--ui-space-6);
+}

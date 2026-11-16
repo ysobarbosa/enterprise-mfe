@@ -12,7 +12,7 @@ const AVAILABILITY: Record<AvailabilityStatus, { readonly label: string; readonl
 };
 
 @Component({
-  selector: 'app-products-page',
+  selector: 'catalog-products-page',
   imports: [CurrencyPipe, Badge, Button, Card, InfiniteScroll],
   templateUrl: './products-page.html',
   styleUrl: './products-page.scss',
