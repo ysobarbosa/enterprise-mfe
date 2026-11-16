@@ -52,6 +52,12 @@
   box-sizing: border-box;
 }
 
+// Reserve the scrollbar space up front: otherwise centred layouts jump
+// sideways when content loads and the scrollbar appears (layout shift).
+html {
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   background: var(--ui-color-bg);

@@ -58,6 +58,8 @@
 main {
   flex: 1;
   width: 100%;
+  // Keeps the footer below the fold while the remote catalog loads.
+  min-height: 100vh;
   max-width: 76rem;
   margin: 0 auto;
   padding: 0 var(--ui-space-6);

@@ -15,7 +15,16 @@
   @for (product of store.products(); track product.id) {
     <li>
       <ui-card interactive>
-        <img uiCardMedia [src]="product.thumbnail" [alt]="product.title" loading="lazy" width="300" height="300" />
+        <!-- The first row is the largest content on screen: load it eagerly and first. -->
+        <img
+          uiCardMedia
+          [src]="product.thumbnail"
+          [alt]="product.title"
+          [attr.loading]="$index < 4 ? 'eager' : 'lazy'"
+          [attr.fetchpriority]="$index < 4 ? 'high' : 'auto'"
+          width="300"
+          height="300"
+        />
         <p class="brand">{{ product.brand ?? 'Seleção da casa' }}</p>
         <h2 class="title">{{ product.title }}</h2>
         <div class="footer">

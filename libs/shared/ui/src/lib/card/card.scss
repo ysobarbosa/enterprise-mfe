@@ -45,6 +45,12 @@
   padding: var(--ui-space-4) var(--ui-space-6) var(--ui-space-6);
 }
 
+@media (max-width: 600px) {
+  .ui-card__body {
+    padding: var(--ui-space-3) var(--ui-space-3) var(--ui-space-4);
+  }
+}
+
 @keyframes ui-card-rise {
   from {
     opacity: 0;
